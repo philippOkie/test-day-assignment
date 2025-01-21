@@ -11,7 +11,6 @@ require("dotenv").config();
 
 const app = express();
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO_OWNER = "philippOkie";
 const REPO_NAME = "webhooks-test";
 
@@ -79,10 +78,7 @@ app.post("/webhook", async (req, res) => {
 
     try {
       const filesResponse = await axios.get(
-        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pullRequestNumber}/files`,
-        {
-          headers: { Authorization: `Bearer ${GITHUB_TOKEN}` },
-        }
+        `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/pulls/${pullRequestNumber}/files`
       );
 
       const redoclyFile = filesResponse.data.find(

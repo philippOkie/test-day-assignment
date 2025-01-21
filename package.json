@@ -12,7 +12,6 @@
   "dependencies": {
     "@redocly/openapi-core": "^1.27.2",
     "axios": "^1.7.9",
-    "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "nodemon": "^3.1.9"
   }
