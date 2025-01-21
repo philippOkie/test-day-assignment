@@ -22,8 +22,10 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Hello, Express!");
 });
+
 async function validateRedoclyYaml(fileContent) {
   console.log("File Content:", fileContent);
+
   try {
     const config = await createConfig({
       extends: ["minimal"],
@@ -38,16 +40,15 @@ async function validateRedoclyYaml(fileContent) {
       config,
     });
 
-    console.log("Validation result:", result);
-
-    // Filter errors and warnings
     const errors = result.filter((issue) => issue.severity === "error");
     const warnings = result.filter((issue) => issue.severity === "warn");
 
     if (errors.length > 0 || warnings.length > 0) {
       console.log("Validation failed:");
+
       errors.forEach((err) => console.log("Error:", err));
       warnings.forEach((warn) => console.log("Warning:", warn));
+
       return false;
     }
 
@@ -94,8 +95,6 @@ app.post("/webhook", async (req, res) => {
           res.status(200).send("openapi.json has been removed in this PR.");
         } else {
           console.log("Found openapi.json, fetching content...");
-
-          console.log(redoclyFile);
 
           const fileContentResponse = await axios.get(redoclyFile.raw_url);
           const fileContent = fileContentResponse.data;
