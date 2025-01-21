@@ -1,19 +1,15 @@
 const express = require("express");
+const axios = require("axios");
 const {
   lintFromString,
   createConfig,
   stringifyYaml,
 } = require("@redocly/openapi-core");
-const fs = require("fs");
-const axios = require("axios");
-
-require("dotenv").config();
 
 const app = express();
 
 const REPO_OWNER = "philippOkie";
 const REPO_NAME = "webhooks-test";
-
 const PORT = 3000;
 
 app.use(express.json());
@@ -23,8 +19,6 @@ app.get("/", (req, res) => {
 });
 
 async function validateRedoclyYaml(fileContent) {
-  console.log("File Content:", fileContent);
-
   try {
     const config = await createConfig({
       extends: ["minimal"],
@@ -60,8 +54,6 @@ async function validateRedoclyYaml(fileContent) {
 }
 
 app.post("/webhook", async (req, res) => {
-  console.log("Received webhook event:", req.body);
-
   const event = req.body;
 
   if (event.action === "opened" || event.action === "synchronize") {
@@ -117,7 +109,6 @@ app.post("/webhook", async (req, res) => {
       res.status(500).send("Error processing the webhook");
     }
   } else {
-    console.log("Ignoring non-synchronize action");
     res.status(200).send("Ignoring event");
   }
 });
