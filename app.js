@@ -1,4 +1,5 @@
 const express = require("express");
+require("dotenv").config();
 const axios = require("axios");
 const {
   lintFromString,
@@ -8,6 +9,7 @@ const {
 
 const app = express();
 
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const REPO_OWNER = "philippOkie";
 const REPO_NAME = "webhooks-test";
 const PORT = 3000;
@@ -17,6 +19,28 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Hello, Express!");
 });
+
+// Set commit status on GitHub
+async function setCommitStatus(commitSha, state, description) {
+  const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/statuses/${commitSha}`;
+  const data = {
+    state,
+    description,
+    context: "openapi-validation",
+  };
+
+  try {
+    await axios.post(url, data, {
+      headers: {
+        Authorization: `Bearer ${GITHUB_TOKEN}`,
+        Accept: "application/vnd.github.v3+json",
+      },
+    });
+    console.log(`Commit status set to ${state}`);
+  } catch (error) {
+    console.error("Error setting commit status:", error.message || error);
+  }
+}
 
 async function validateRedoclyYaml(fileContent) {
   try {
@@ -42,14 +66,14 @@ async function validateRedoclyYaml(fileContent) {
       errors.forEach((err) => console.log("Error:", err));
       warnings.forEach((warn) => console.log("Warning:", warn));
 
-      return false;
+      return { state: "failure", message: "Validation failed" };
     }
 
     console.log("Validation passed");
-    return true;
+    return { state: "success", message: "Validation passed" };
   } catch (error) {
     console.error("Error validating openapi.json:", error.message || error);
-    return false;
+    return { state: "error", message: "Error validating the OpenAPI file" };
   }
 }
 
@@ -62,10 +86,13 @@ app.post("/webhook", async (req, res) => {
     const pullRequestNumber = event.pull_request
       ? event.pull_request.number
       : null;
+    const commitSha = event.pull_request?.head.sha;
 
-    if (!pullRequestNumber) {
-      console.error("No pull request number found in the event.");
-      return res.status(400).send("No pull request number found in the event.");
+    if (!pullRequestNumber || !commitSha) {
+      console.error("No pull request number or commit sha found in the event.");
+      return res
+        .status(400)
+        .send("No pull request number or commit sha found in the event.");
     }
 
     try {
@@ -80,6 +107,7 @@ app.post("/webhook", async (req, res) => {
       if (redoclyFile) {
         if (redoclyFile.status === "removed") {
           console.log("openapi.json has been removed in this PR.");
+          await setCommitStatus(commitSha, "success", "openapi.json removed.");
           res.status(200).send("openapi.json has been removed in this PR.");
         } else {
           console.log("Found openapi.json, fetching content...");
@@ -87,18 +115,22 @@ app.post("/webhook", async (req, res) => {
           const fileContentResponse = await axios.get(redoclyFile.raw_url);
           const fileContent = fileContentResponse.data;
 
-          const isFileValid = await validateRedoclyYaml(fileContent);
+          const validationResult = await validateRedoclyYaml(fileContent);
+          await setCommitStatus(
+            commitSha,
+            validationResult.state,
+            validationResult.message
+          );
 
-          if (isFileValid) {
-            console.log("openapi.json is valid");
-            res.status(200).send("openapi.json is valid");
-          } else {
-            console.log("openapi.json is invalid");
-            res.status(200).send("openapi.json is invalid");
-          }
+          res.status(200).send(validationResult.message);
         }
       } else {
         console.log("openapi.json file not found in the pull request.");
+        await setCommitStatus(
+          commitSha,
+          "success",
+          "No openapi.json file found."
+        );
         res.status(200).send("No openapi.json file found in the pull request.");
       }
     } catch (error) {
@@ -106,6 +138,7 @@ app.post("/webhook", async (req, res) => {
         "Error fetching PR details or files:",
         error.message || error
       );
+      await setCommitStatus(commitSha, "error", "Error processing the webhook");
       res.status(500).send("Error processing the webhook");
     }
   } else {
